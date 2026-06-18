@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Cardtoon - 智能循環讀心術</title>
+    <style>
+        body { 
+            margin: 0; 
+            background-color: #111; 
+            display: flex; flex-direction: column; align-items: center; 
+            min-height: 100vh; font-family: sans-serif; color: #fff; 
+            touch-action: none; overflow: hidden;
+            user-select: none;
+        }
+        
+        #status-text { 
+            position: absolute; top: 40px; text-align: center; 
+            color: #f3c623; font-weight: bold; font-size: 20px;
+            pointer-events: none; z-index: 100; text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+        }
+        
+        /* 繪圖畫布層級最高，確保一開始能順暢作畫 */
+        #paintCanvas { 
+            position: absolute; top: 0; left: 0; z-index: 50; cursor: crosshair; 
+        }
+        
+        /* 撲克牌 3D 翻轉結構 */
+        .card { 
+            position: absolute; z-index: 10; 
+            transition: transform 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+            transform-style: preserve-3d; cursor: pointer; 
+        }
+        
+        .face { 
+            position: absolute; width: 100%; height: 100%; 
+            backface-visibility: hidden; border-radius: 10px; 
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5); box-sizing: border-box;
+        }
+        
+        /* 高級感魔幻牌背 */
+        .back { 
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border: 3px solid #f3c623; 
+            background-image: radial-gradient(rgba(243, 198, 35, 0.15) 1px, transparent 0);
+            background-size: 8px 8px;
+        }
+        
+        /* 傳統撲克牌正面 */
+        .front { 
+            transform: rotateY(180deg); 
+            display: flex; flex-direction: column; justify-content: center; align-items: center; 
+            background: #fff; font-size: 28px; font-weight: bold; border: 2px solid #ccc;
+        }
+        
+        /* 紅色系花色優化 */
+        .front.red { color: #e63946; }
+        .front.black { color: #1d3557; }
+        .card-suit { font-size: 45px; margin-top: 5px; }
+
+        /* 右下角秘密觸發區 */
+        #secret-btn { position: fixed; bottom: 0; right: 0; width: 80px; height: 80px; z-index: 999; background: transparent; }
+    </style>
+</head>
+<body>
+
+    <h3 id="status-text">✏️ 請在螢幕上畫出數個框框<br>(完成後「長按螢幕不動」施放魔法)</h3>
+    <canvas id="paintCanvas"></canvas>
+    <div id="cards-container"></div>
+    <div id="secret-btn"></div>
+
+    <script>
+        const canvas = document.getElementById('paintCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('cards-container');
+        const statusText = document.getElementById('status-text');
+        
+        let isDrawing = false, strokes = [], drawnRects = [];
+        let cardSequence = []; 
+        
+        // 魔術設定：起始牌花色與數字
+        let startSuit = 'spade';
+        let startValue = 7;
+
+        const suitsData = {
+            'spade': { symbol: '♠', class: 'black' },
+            'diamond': { symbol: '♦', class: 'red' },
+            'club': { symbol: '♣', class: 'black' },
+            'heart': { symbol: '♥', class: 'red' }
+        };
+        const suitsOrder = ['spade', 'diamond', 'club', 'heart'];
+
+        // 滿版畫布設定
+        function resize() { 
+            canvas.width = window.innerWidth; 
+            canvas.height = window.innerHeight; 
+            ctx.strokeStyle = '#fff'; 
+            ctx.lineWidth = 4; 
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+        }
+        window.onresize = resize; 
+        resize();
+
+        // 🧠 核心演算法：依序推算下一張牌面
+        function getNextCard(index) {
+            if (index === 0) return { suit: startSuit, val: startValue };
+            
+            // 1. 花色循環：黑桃 → 方塊 → 梅花 → 紅心
+            let prevSuitIdx = suitsOrder.indexOf(cardSequence[index - 1].suit);
+            let nextSuit = suitsOrder[(prevSuitIdx + 1) % 4];
+            
+            // 2. 數字遞增：前一張 + 5，若超過 13 則減去 13
+            let nextVal = cardSequence[index - 1].val + 5;
+            if (nextVal > 13) nextVal -= 13;
+            
+            return { suit: nextSuit, val: nextVal };
+        }
+
+        // 轉換數字為撲克牌文字 (1->A, 11->J...)
+        function formatCardValue(val) {
+            if (val === 1) return 'A';
+            if (val === 11) return 'J';
+            if (val === 12) return 'Q';
+            if (val === 13) return 'K';
+            return val;
+        }
+
+        // 🎨 觸控與長按偵測機制
+        let pressTimer;
+        canvas.addEventListener('pointerdown', (e) => {
+            isDrawing = true; 
+            strokes = []; 
+            ctx.beginPath(); 
+            ctx.moveTo(e.clientX, e.clientY);
+            
+            // 長按 800 毫秒且中間無大幅移動，則觸發魔術
+            pressTimer = setTimeout(() => { 
+                if(drawnRects.length > 0) finalizeMagic(); 
+            }, 800);
+        });
+
+        canvas.addEventListener('pointermove', (e) => {
+            if(!isDrawing) return;
+            ctx.lineTo(e.clientX, e.clientY); 
+            ctx.stroke();
+            strokes.push({x: e.clientX, y: e.clientY});
+            
+            // 手指或滑鼠有移動，即取消長按判定
+            clearTimeout(pressTimer);
+        });
+
+        canvas.addEventListener('pointerup', () => {
+            isDrawing = false; 
+            clearTimeout(pressTimer);
+            // 筆跡點數夠多才判定為一個有效框框
+            if(strokes.length > 15) {
+                drawnRects.push([...strokes]);
+            }
+        });
+
+        // 🔮 施展魔術：將線條化為撲克牌
+        function finalizeMagic() {
+            canvas.style.display = 'none'; // 隱藏畫布，讓底下的卡牌能被點擊
+            statusText.innerHTML = "🃏 奇蹟誕生！<br>請分別點擊牌背將它們翻開...";
+            
+            drawnRects.forEach((rect, i) => {
+                // 計算框框的上下左右極值邊界
+                let xs = rect.map(p => p.x), ys = rect.map(p => p.y);
+                let minX = Math.min(...xs) - 10, maxX = Math.max(...xs) + 10;
+                let minY = Math.min(...ys) - 10, maxY = Math.max(...ys) + 10;
+                let w = maxX - minX;
+                let h = maxY - minY;
+                
+                // 計算該順序應對應的牌
+                let card = getNextCard(i);
+                cardSequence.push(card);
+
+                let cardMeta = suitsData[card.suit];
+                let displayValue = formatCardValue(card.val);
+
+                // 動態生成 3D 撲克牌元件
+                let div = document.createElement('div');
+                div.className = 'card';
+                div.style.width = w + 'px';
+                div.style.height = h + 'px';
+                div.style.left = minX + 'px';
+                div.style.top = minY + 'px';
+                
+                div.innerHTML = `
+                    <div class="face back"></div>
+                    <div class="face front ${cardMeta.class}">
+                        <div>${displayValue}</div>
+                        <div class="card-suit">${cardMeta.symbol}</div>
+                    </div>
+                `;
+                
+                // 獨立翻牌點擊事件
+                div.onclick = function(e) {
+                    e.stopPropagation();
+                    this.style.transform = "rotateY(180deg)";
+                };
+                
+                container.appendChild(div);
+            });
+        }
+
+        // 🧙‍♂️ 魔術師秘密設定：長按右下角重置/設定起始狀態
+        let lastTapTime = 0;
+        document.getElementById('secret-btn').addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            const currentTime = Date.now();
+            // 雙擊觸發
+            if (currentTime - lastTapTime < 300 && currentTime - lastTapTime > 0) {
+                let input = prompt("請輸入起始牌設定（例如：spade 7 或 heart 1）", `${startSuit} ${startValue}`);
+                if (input) {
+                    let parts = input.split(' ');
+                    if (parts.length === 2 && suitsOrder.includes(parts[0]) && !isNaN(parts[1])) {
+                        startSuit = parts[0];
+                        startValue = parseInt(parts[1]);
+                        alert(`成功！起始牌已改為：${startSuit.toUpperCase()} ${startValue}`);
+                        // 重置狀態
+                        cardSequence = [];
+                        drawnRects = [];
+                        container.innerHTML = "";
+                        canvas.style.display = 'block';
+                        resize();
+                        statusText.innerHTML = "✏️ 請在螢幕上畫出數個框框<br>(完成後「長按螢幕不動」施放魔法)";
+                    } else {
+                        alert("格式錯誤，重置失敗。格式範例：spade 7");
+                    }
+                }
+            }
+            lastTapTime = currentTime;
+        });
+    </script>
+</body>
+</html>
