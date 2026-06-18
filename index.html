@@ -35,20 +35,12 @@
             backface-visibility: hidden; border-radius: 10px; 
             box-shadow: 0 10px 25px rgba(0,0,0,0.5); box-sizing: border-box;
             overflow: hidden; /* 確保圖片不超出圓角 */
+            background: #fff; /* 預設白底，讓透明邊緣的圖檔更自然 */
         }
         
-        /* 牌背：保留魔幻質感 */
-        .back { 
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            border: 3px solid #f3c623; 
-            background-image: radial-gradient(rgba(243, 198, 35, 0.15) 1px, transparent 0);
-            background-size: 8px 8px;
-        }
-        
-        /* 牌面：移除背景，讓內部 img 撐滿 */
+        /* 牌面翻轉設定 */
         .front { 
             transform: rotateY(180deg); 
-            background: #fff;
             border: 1px solid #ccc;
         }
 
@@ -64,7 +56,7 @@
 </head>
 <body>
 
-    <h3 id="status-text">✏️ 請在螢幕上畫出數個框框<br>(完成後「長按螢幕不動」施放魔法)</h3>
+    <h3 id="status-text">✏️ 請在螢幕上畫出數個框框</h3>
     <canvas id="paintCanvas"></canvas>
     <div id="cards-container"></div>
     <div id="secret-btn"></div>
@@ -115,19 +107,14 @@
         // 🧠 核心演算法：依序推算下一張牌面
         // ==========================================
         function getNextCard(index) {
-            // 第一張牌：使用日期演算結果 (或秘密按鈕覆蓋的設定)
             if (index === 0) return { suit: startSuit, val: startValue };
             
-            // 後續卡牌：接續前一張進行推算
             const prevCard = cardSequence[index - 1];
             
-            // 1. 花色循環：尋找上一張花色在循環序列中的位置，並取下一個
             let prevSuitIdx = cycleOrder.indexOf(prevCard.suit);
-            // 如果上一張花色不在循環序列內(雖然防呆已做，仍保險抓0)，則從頭開始
             if(prevSuitIdx === -1) prevSuitIdx = 0; 
             let nextSuit = cycleOrder[(prevSuitIdx + 1) % 4];
             
-            // 2. 數字遞增：前一張 + 5，若超過 13 則減去 13
             let nextVal = prevCard.val + 5;
             if (nextVal > 13) nextVal -= 13;
             
@@ -139,13 +126,11 @@
         // ==========================================
         function getImagePath(suit, val) {
             let valStr = val.toString();
-            // 特殊數字轉換為英文字母命名
-            if (val === 1) valStr = '1'; // A (Ace) 對應 1
+            if (val === 1) valStr = '1'; 
             else if (val === 11) valStr = 'jack';
             else if (val === 12) valStr = 'queen';
             else if (val === 13) valStr = 'king';
             
-            // 嚴格遵守規範： ./cards/[花色]_[點數].png
             return `./cards/${suit}_${valStr}.png`;
         }
 
@@ -181,7 +166,7 @@
         // 🔮 施展魔術：將線條化為實體圖檔的撲克牌
         function finalizeMagic() {
             canvas.style.display = 'none'; 
-            statusText.innerHTML = "🃏 奇蹟誕生！<br>請分別點擊牌背將它們翻開...";
+            statusText.innerHTML = ""; // 觸發後也可以保持乾淨，不留文字，或改成空字串
             
             drawnRects.forEach((rect, i) => {
                 let xs = rect.map(p => p.x), ys = rect.map(p => p.y);
@@ -190,7 +175,6 @@
                 let w = maxX - minX;
                 let h = maxY - minY;
                 
-                // 計算順序與圖片路徑
                 let card = getNextCard(i);
                 cardSequence.push(card);
                 let imgPath = getImagePath(card.suit, card.val);
@@ -202,9 +186,11 @@
                 div.style.left = minX + 'px';
                 div.style.top = minY + 'px';
                 
-                // 放入背面的 div 與正面的 img
+                // 載入牌背圖檔：bicycle_blue.png 與 動態牌面
                 div.innerHTML = `
-                    <div class="face back"></div>
+                    <div class="face back">
+                        <img class="card-img" src="./cards/bicycle_blue.png" alt="card back">
+                    </div>
                     <div class="face front">
                         <img class="card-img" src="${imgPath}" alt="${card.suit} ${card.val}">
                     </div>
@@ -232,13 +218,13 @@
                     if (parts.length === 2 && validSuits.includes(parts[0]) && !isNaN(parts[1])) {
                         startSuit = parts[0];
                         startValue = parseInt(parts[1]);
-                        alert(`成功！起始牌已改為：${startSuit.toUpperCase()} ${startValue}`);
+                        // 秘密提示設定成功後，還原乾淨的畫面
                         cardSequence = [];
                         drawnRects = [];
                         container.innerHTML = "";
                         canvas.style.display = 'block';
                         resize();
-                        statusText.innerHTML = "✏️ 請在螢幕上畫出數個框框<br>(完成後「長按螢幕不動」施放魔法)";
+                        statusText.innerHTML = "✏️ 請在螢幕上畫出數個框框";
                     } else {
                         alert("格式錯誤！必須是花色與數字的組合，如：heart 10");
                     }
