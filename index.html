@@ -3,20 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Cardtoon - 日期讀心術與實體圖檔</title>
+    <title>Cardtoon - 專業讀心術</title>
     <style>
         body { 
-            margin: 0; 
-            background-color: #111; 
+            margin: 0; background-color: #111; 
             display: flex; flex-direction: column; align-items: center; 
-            min-height: 100vh; font-family: sans-serif; color: #fff; 
-            touch-action: none; overflow: hidden;
-            /* 🚫 徹底禁用各種瀏覽器的文字選取與長按選單 */
-            user-select: none;
-            -webkit-user-select: none;
-            -moz-user-select: none;
-            -ms-user-select: none;
-            -webkit-touch-callout: none; 
+            min-height: 100vh; touch-action: none; overflow: hidden;
+            user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
         }
         
         #status-text { 
@@ -26,40 +19,29 @@
         }
         
         #paintCanvas { 
-            position: absolute; top: 0; left: 0; z-index: 50; cursor: crosshair; 
+            position: absolute; top: 0; left: 0; z-index: 50; cursor: crosshair; touch-action: none;
         }
         
         .card { 
             position: absolute; z-index: 10; 
             transition: transform 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
             transform-style: preserve-3d; cursor: pointer; 
-            /* 確保卡牌點擊時也不會出現灰色半透明的選取框 */
             -webkit-tap-highlight-color: transparent;
         }
         
         .face { 
             position: absolute; width: 100%; height: 100%; 
             backface-visibility: hidden; border-radius: 10px; 
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5); box-sizing: border-box;
-            overflow: hidden; 
-            background: #fff; 
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5); overflow: hidden; background: #fff;
         }
         
-        .front { 
-            transform: rotateY(180deg); 
-            border: 1px solid #ccc;
-        }
+        .front { transform: rotateY(180deg); border: 1px solid #ccc; }
 
         .card-img {
-            width: 100%;
-            height: 100%;
-            object-fit: fill; 
-            display: block;
-            /* 防止長按圖片出現「儲存圖片」選單 */
-            pointer-events: none; 
+            width: 100%; height: 100%; object-fit: fill; display: block; pointer-events: none;
         }
 
-        #secret-btn { position: fixed; bottom: 0; right: 0; width: 80px; height: 80px; z-index: 999; background: transparent; }
+        #secret-btn { position: fixed; bottom: 0; right: 0; width: 80px; height: 80px; z-index: 999; }
     </style>
 </head>
 <body>
@@ -70,10 +52,7 @@
     <div id="secret-btn"></div>
 
     <script>
-        // 🚫 擋下全域的右鍵/長按預設選單，確保魔術進行不被干擾
-        window.addEventListener('contextmenu', function (e) {
-            e.preventDefault();
-        });
+        window.addEventListener('contextmenu', e => e.preventDefault());
 
         const canvas = document.getElementById('paintCanvas');
         const ctx = canvas.getContext('2d');
@@ -84,150 +63,92 @@
         let cardSequence = []; 
 
         const today = new Date();
-        const currentMonth = today.getMonth() + 1; 
+        const currentMonth = today.getMonth() + 1;
         const currentDate = today.getDate();
         const remainder = currentDate % 4;
 
-        let defaultStartSuit = '';
-        if (remainder === 1) defaultStartSuit = 'club';
-        else if (remainder === 2) defaultStartSuit = 'diamond';
-        else if (remainder === 3) defaultStartSuit = 'heart';
-        else if (remainder === 0) defaultStartSuit = 'spade';
-
+        let defaultStartSuit = (remainder === 1) ? 'club' : (remainder === 2) ? 'diamond' : (remainder === 3) ? 'heart' : 'spade';
         let startSuit = defaultStartSuit;
         let startValue = currentMonth;
-
         const cycleOrder = ['heart', 'spade', 'diamond', 'club'];
 
         function resize() { 
-            canvas.width = window.innerWidth; 
-            canvas.height = window.innerHeight; 
-            ctx.strokeStyle = '#fff'; 
-            ctx.lineWidth = 4; 
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
+            canvas.width = window.innerWidth; canvas.height = window.innerHeight; 
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
         }
-        window.onresize = resize; 
-        resize();
+        window.onresize = resize; resize();
+
+        // 修正後的坐標獲取函式 (解決偏移問題)
+        function getRelativePos(e) {
+            const rect = canvas.getBoundingClientRect();
+            return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+        }
 
         function getNextCard(index) {
             if (index === 0) return { suit: startSuit, val: startValue };
-            
             const prevCard = cardSequence[index - 1];
-            
             let prevSuitIdx = cycleOrder.indexOf(prevCard.suit);
-            if(prevSuitIdx === -1) prevSuitIdx = 0; 
             let nextSuit = cycleOrder[(prevSuitIdx + 1) % 4];
-            
             let nextVal = prevCard.val + 5;
             if (nextVal > 13) nextVal -= 13;
-            
             return { suit: nextSuit, val: nextVal };
         }
 
         function getImagePath(suit, val) {
-            let valStr = val.toString();
-            if (val === 1) valStr = '1'; 
-            else if (val === 11) valStr = 'jack';
-            else if (val === 12) valStr = 'queen';
-            else if (val === 13) valStr = 'king';
-            
-            return `./cards/${suit}_${valStr}.png`;
+            let v = (val === 1) ? '1' : (val === 11) ? 'jack' : (val === 12) ? 'queen' : (val === 13) ? 'king' : val;
+            return `./cards/${suit}_${v}.png`;
         }
 
         let pressTimer;
         canvas.addEventListener('pointerdown', (e) => {
-            isDrawing = true; 
-            strokes = []; 
-            ctx.beginPath(); 
-            ctx.moveTo(e.clientX, e.clientY);
-            
-            pressTimer = setTimeout(() => { 
-                if(drawnRects.length > 0) finalizeMagic(); 
-            }, 800);
+            isDrawing = true; strokes = []; 
+            const pos = getRelativePos(e);
+            ctx.beginPath(); ctx.moveTo(pos.x, pos.y);
+            pressTimer = setTimeout(() => { if(drawnRects.length > 0) finalizeMagic(); }, 800);
         });
 
         canvas.addEventListener('pointermove', (e) => {
             if(!isDrawing) return;
-            ctx.lineTo(e.clientX, e.clientY); 
-            ctx.stroke();
-            strokes.push({x: e.clientX, y: e.clientY});
+            const pos = getRelativePos(e);
+            ctx.lineTo(pos.x, pos.y); ctx.stroke();
+            strokes.push(pos);
             clearTimeout(pressTimer);
         });
 
         canvas.addEventListener('pointerup', () => {
-            isDrawing = false; 
-            clearTimeout(pressTimer);
-            if(strokes.length > 15) {
-                drawnRects.push([...strokes]);
-            }
+            isDrawing = false; clearTimeout(pressTimer);
+            if(strokes.length > 15) drawnRects.push([...strokes]);
         });
 
         function finalizeMagic() {
-            canvas.style.display = 'none'; 
-            statusText.innerHTML = ""; 
-            
+            canvas.style.display = 'none'; statusText.innerHTML = "";
             drawnRects.forEach((rect, i) => {
                 let xs = rect.map(p => p.x), ys = rect.map(p => p.y);
-                let minX = Math.min(...xs) - 10, maxX = Math.max(...xs) + 10;
-                let minY = Math.min(...ys) - 10, maxY = Math.max(...ys) + 10;
-                let w = maxX - minX;
-                let h = maxY - minY;
+                let minX = Math.min(...xs)-10, maxX = Math.max(...xs)+10, minY = Math.min(...ys)-10, maxY = Math.max(...ys)+10;
+                let card = getNextCard(i); cardSequence.push(card);
                 
-                let card = getNextCard(i);
-                cardSequence.push(card);
-                let imgPath = getImagePath(card.suit, card.val);
-
                 let div = document.createElement('div');
                 div.className = 'card';
-                div.style.width = w + 'px';
-                div.style.height = h + 'px';
-                div.style.left = minX + 'px';
-                div.style.top = minY + 'px';
-                
-                div.innerHTML = `
-                    <div class="face back">
-                        <img class="card-img" src="./cards/bicycle_blue.png" alt="card back">
-                    </div>
-                    <div class="face front">
-                        <img class="card-img" src="${imgPath}" alt="${card.suit} ${card.val}">
-                    </div>
-                `;
-                
-                div.onclick = function(e) {
-                    e.stopPropagation();
-                    this.style.transform = "rotateY(180deg)";
-                };
-                
+                div.style.width = (maxX-minX)+'px'; div.style.height = (maxY-minY)+'px';
+                div.style.left = minX+'px'; div.style.top = minY+'px';
+                div.innerHTML = `<div class="face back"><img class="card-img" src="./cards/bicycle_blue.png"></div>
+                                 <div class="face front"><img class="card-img" src="${getImagePath(card.suit, card.val)}"></div>`;
+                div.onclick = function(e) { e.stopPropagation(); this.style.transform = "rotateY(180deg)"; };
                 container.appendChild(div);
             });
         }
 
-        let lastTapTime = 0;
+        let lastTap = 0;
         document.getElementById('secret-btn').addEventListener('pointerdown', (e) => {
-            e.preventDefault();
-            const currentTime = Date.now();
-            if (currentTime - lastTapTime < 300 && currentTime - lastTapTime > 0) {
-                let input = prompt("請輸入起始牌設定（格式如：spade 7）\n預設由日期決定的牌為：" + defaultStartSuit + " " + currentMonth, `${startSuit} ${startValue}`);
+            const now = Date.now();
+            if (now - lastTap < 300) {
+                let input = prompt("起始牌設定 (如: spade 7)", `${startSuit} ${startValue}`);
                 if (input) {
-                    let parts = input.split(' ');
-                    const validSuits = ['spade', 'heart', 'diamond', 'club'];
-                    if (parts.length === 2 && validSuits.includes(parts[0]) && !isNaN(parts[1])) {
-                        startSuit = parts[0];
-                        startValue = parseInt(parts[1]);
-                        
-                        cardSequence = [];
-                        drawnRects = [];
-                        container.innerHTML = "";
-                        canvas.style.display = 'block';
-                        resize();
-                        statusText.innerHTML = "請畫出撲克牌框";
-                    } else {
-                        alert("格式錯誤！必須是花色與數字的組合，如：heart 10");
-                    }
+                    let p = input.split(' ');
+                    if (p.length === 2) { startSuit = p[0]; startValue = parseInt(p[1]); location.reload(); }
                 }
             }
-            lastTapTime = currentTime;
+            lastTap = now;
         });
     </script>
 </body>
