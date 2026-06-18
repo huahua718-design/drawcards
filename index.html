@@ -11,7 +11,12 @@
             display: flex; flex-direction: column; align-items: center; 
             min-height: 100vh; font-family: sans-serif; color: #fff; 
             touch-action: none; overflow: hidden;
+            /* 🚫 徹底禁用各種瀏覽器的文字選取與長按選單 */
             user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            -webkit-touch-callout: none; 
         }
         
         #status-text { 
@@ -28,17 +33,18 @@
             position: absolute; z-index: 10; 
             transition: transform 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
             transform-style: preserve-3d; cursor: pointer; 
+            /* 確保卡牌點擊時也不會出現灰色半透明的選取框 */
+            -webkit-tap-highlight-color: transparent;
         }
         
         .face { 
             position: absolute; width: 100%; height: 100%; 
             backface-visibility: hidden; border-radius: 10px; 
             box-shadow: 0 10px 25px rgba(0,0,0,0.5); box-sizing: border-box;
-            overflow: hidden; /* 確保圖片不超出圓角 */
-            background: #fff; /* 預設白底，讓透明邊緣的圖檔更自然 */
+            overflow: hidden; 
+            background: #fff; 
         }
         
-        /* 牌面翻轉設定 */
         .front { 
             transform: rotateY(180deg); 
             border: 1px solid #ccc;
@@ -47,8 +53,10 @@
         .card-img {
             width: 100%;
             height: 100%;
-            object-fit: fill; /* 讓撲克牌圖片完全填滿畫出的框框 */
+            object-fit: fill; 
             display: block;
+            /* 防止長按圖片出現「儲存圖片」選單 */
+            pointer-events: none; 
         }
 
         #secret-btn { position: fixed; bottom: 0; right: 0; width: 80px; height: 80px; z-index: 999; background: transparent; }
@@ -56,12 +64,17 @@
 </head>
 <body>
 
-    <h3 id="status-text">✏️ 請在螢幕上畫出數個框框</h3>
+    <h3 id="status-text">請畫出撲克牌框</h3>
     <canvas id="paintCanvas"></canvas>
     <div id="cards-container"></div>
     <div id="secret-btn"></div>
 
     <script>
+        // 🚫 擋下全域的右鍵/長按預設選單，確保魔術進行不被干擾
+        window.addEventListener('contextmenu', function (e) {
+            e.preventDefault();
+        });
+
         const canvas = document.getElementById('paintCanvas');
         const ctx = canvas.getContext('2d');
         const container = document.getElementById('cards-container');
@@ -70,26 +83,20 @@
         let isDrawing = false, strokes = [], drawnRects = [];
         let cardSequence = []; 
 
-        // ==========================================
-        // 🌟 日期自動演算邏輯
-        // ==========================================
         const today = new Date();
-        const currentMonth = today.getMonth() + 1; // getMonth() 是從 0 開始的
+        const currentMonth = today.getMonth() + 1; 
         const currentDate = today.getDate();
         const remainder = currentDate % 4;
 
-        // 決定預設的起始花色
         let defaultStartSuit = '';
         if (remainder === 1) defaultStartSuit = 'club';
         else if (remainder === 2) defaultStartSuit = 'diamond';
         else if (remainder === 3) defaultStartSuit = 'heart';
         else if (remainder === 0) defaultStartSuit = 'spade';
 
-        // 魔術設定：起始牌花色與數字 (預設為今日演算法)
         let startSuit = defaultStartSuit;
         let startValue = currentMonth;
 
-        // 後續的花色循環順序：愛心─黑桃─紅磚(方塊)─梅花
         const cycleOrder = ['heart', 'spade', 'diamond', 'club'];
 
         function resize() { 
@@ -103,9 +110,6 @@
         window.onresize = resize; 
         resize();
 
-        // ==========================================
-        // 🧠 核心演算法：依序推算下一張牌面
-        // ==========================================
         function getNextCard(index) {
             if (index === 0) return { suit: startSuit, val: startValue };
             
@@ -121,9 +125,6 @@
             return { suit: nextSuit, val: nextVal };
         }
 
-        // ==========================================
-        // 🖼️ 圖片路徑轉換器
-        // ==========================================
         function getImagePath(suit, val) {
             let valStr = val.toString();
             if (val === 1) valStr = '1'; 
@@ -134,7 +135,6 @@
             return `./cards/${suit}_${valStr}.png`;
         }
 
-        // 🎨 觸控與長按偵測機制
         let pressTimer;
         canvas.addEventListener('pointerdown', (e) => {
             isDrawing = true; 
@@ -163,10 +163,9 @@
             }
         });
 
-        // 🔮 施展魔術：將線條化為實體圖檔的撲克牌
         function finalizeMagic() {
             canvas.style.display = 'none'; 
-            statusText.innerHTML = ""; // 觸發後也可以保持乾淨，不留文字，或改成空字串
+            statusText.innerHTML = ""; 
             
             drawnRects.forEach((rect, i) => {
                 let xs = rect.map(p => p.x), ys = rect.map(p => p.y);
@@ -186,7 +185,6 @@
                 div.style.left = minX + 'px';
                 div.style.top = minY + 'px';
                 
-                // 載入牌背圖檔：bicycle_blue.png 與 動態牌面
                 div.innerHTML = `
                     <div class="face back">
                         <img class="card-img" src="./cards/bicycle_blue.png" alt="card back">
@@ -205,7 +203,6 @@
             });
         }
 
-        // 🧙‍♂️ 魔術師秘密設定 (可臨時更改當下的起始牌)
         let lastTapTime = 0;
         document.getElementById('secret-btn').addEventListener('pointerdown', (e) => {
             e.preventDefault();
@@ -218,13 +215,13 @@
                     if (parts.length === 2 && validSuits.includes(parts[0]) && !isNaN(parts[1])) {
                         startSuit = parts[0];
                         startValue = parseInt(parts[1]);
-                        // 秘密提示設定成功後，還原乾淨的畫面
+                        
                         cardSequence = [];
                         drawnRects = [];
                         container.innerHTML = "";
                         canvas.style.display = 'block';
                         resize();
-                        statusText.innerHTML = "✏️ 請在螢幕上畫出數個框框";
+                        statusText.innerHTML = "請畫出撲克牌框";
                     } else {
                         alert("格式錯誤！必須是花色與數字的組合，如：heart 10");
                     }
