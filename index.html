@@ -6,6 +6,7 @@
     <title>Cardtoon - 專業極簡讀心術</title>
     <style>
         /* 💡 全域防干擾與極簡黑美學 */
+        * { box-sizing: border-box; }
         body { 
             margin: 0; background-color: #111; 
             display: flex; flex-direction: column; align-items: center; 
@@ -14,15 +15,16 @@
             user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
         }
 
-        /* 🎬 起始畫面樣式 */
+        /* 🎬 起始畫面樣式（修正行動裝置拉扯與斷字問題） */
         #start-screen {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
             background: #111; z-index: 800; display: flex; flex-direction: column;
             justify-content: center; align-items: center; cursor: pointer;
-            touch-action: none;
+            touch-action: none; text-align: center; padding: 20px;
         }
         #start-screen h1 {
-            font-size: 38px; font-weight: 300; letter-spacing: 3px; margin: 0 0 12px 0; color: #fff;
+            font-size: 36px; font-weight: 400; letter-spacing: 2px; margin: 0 0 16px 0; color: #fff;
+            width: 100%; word-break: break-word; line-height: 1.3;
         }
         #start-screen p {
             font-size: 16px; color: #666; margin: 0; letter-spacing: 1px;
@@ -30,45 +32,39 @@
         }
         @keyframes blink { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
 
-        /* 🧙‍♂️ 魔術師秘密觸發區 (右下角微小透明圓鈕) */
+        /* 🧙‍♂️ 魔術師秘密觸發區（完全透明隱形，移除所有視覺外框） */
         #secret-btn { 
-            position: absolute; bottom: 20px; right: 20px; width: 55px; height: 55px; 
-            z-index: 900; border-radius: 50%; background: rgba(255,255,255,0.01); 
-            border: 1px solid rgba(255,255,255,0.03); transition: all 0.2s ease;
+            position: absolute; bottom: 0; right: 0; width: 85px; height: 85px; 
+            z-index: 900; background: transparent; border: none; outline: none;
             -webkit-tap-highlight-color: transparent;
         }
-        /* 觸發成功的視覺回饋 */
-        .active-trigger { 
-            background: rgba(243, 198, 35, 0.15) !important; 
-            border-color: #f3c623 !important; transform: scale(1.1); 
-        }
 
-        /* 🃏 4 x 13 撲克牌矩陣彈出選單 (Overlay) */
+        /* 🃏 4 x 13 撲克牌矩陣彈出選單（固定於螢幕下方，方便單手操作） */
         #matrix-overlay {
             position: fixed; display: none; pointer-events: none;
-            transform: translate(-50%, -50%); z-index: 1000;
-            background: rgba(15, 15, 15, 0.98); padding: 16px; border-radius: 14px;
-            border: 1.5px solid #f3c623; box-shadow: 0 25px 60px rgba(0,0,0,0.85);
-            width: max-content; touch-action: none;
+            left: 50%; bottom: 30px; transform: translateX(-50%); z-index: 1000;
+            background: rgba(20, 20, 20, 0.96); padding: 14px; border-radius: 16px;
+            border: 1px solid #333; box-shadow: 0 20px 50px rgba(0,0,0,0.9);
+            width: calc(100vw - 32px); max-width: 420px; touch-action: none;
         }
         #matrix-preview {
-            text-align: center; font-size: 20px; font-weight: bold; margin-bottom: 12px;
+            text-align: center; font-size: 18px; font-weight: bold; margin-bottom: 12px;
             color: #f3c623; pointer-events: none; height: 24px; line-height: 24px;
         }
         #matrix-grid {
-            display: grid; grid-template-columns: repeat(13, 1fr); gap: 4px; pointer-events: none;
+            display: grid; grid-template-columns: repeat(13, 1fr); gap: 3px; pointer-events: none;
         }
-        /* 兼顧手機寬度的黃金卡片尺寸 */
+        /* 行動端流暢縮放尺寸 */
         .card-option {
-            pointer-events: auto; width: 22px; height: 32px; background: #fff;
+            pointer-events: auto; width: 100%; aspect-ratio: 2 / 3; background: #fff;
             border-radius: 4px; display: flex; align-items: center; justify-content: center;
-            font-size: 11px; font-weight: bold; transition: transform 0.1s ease, box-shadow 0.1s ease;
+            font-size: 10px; font-weight: bold; transition: transform 0.1s ease, box-shadow 0.1s ease;
             user-select: none; -webkit-user-select: none;
         }
-        /* 滑動選取時的高亮擴大特效 */
+        /* 滑動選取時的高亮放大特效 */
         .card-option.highlight {
             transform: scale(1.4); box-shadow: 0 0 15px #f3c623; z-index: 1100;
-            border: 1.5px solid #f3c623;
+            border: 1px solid #f3c623;
         }
 
         /* ✏️ 畫布主效果層級 (初始隱藏) */
@@ -132,7 +128,7 @@
         let cardSequence = []; 
 
         // ==========================================
-        // 📅 預設日期自動演算邏輯 (若未設定起始牌時啟用)
+        // 📅 預設日期自動演算邏輯
         // ==========================================
         const today = new Date();
         const currentMonth = today.getMonth() + 1;
@@ -145,7 +141,7 @@
         const cycleOrder = ['heart', 'spade', 'diamond', 'club'];
 
         // ==========================================
-        // 🛠️ 動態渲染 4 x 13 撲克牌選擇器
+        // 🛠️ 動態建置 4 x 13 撲克牌選擇器
         // ==========================================
         const selectorSuits = [
             { id: 'spade', sym: '♠', color: '#111111' },
@@ -176,25 +172,22 @@
         });
 
         // ==========================================
-        // 👆 一體化選牌器互動核心 (Pointer Events API)
+        // 👆 隱形選牌器智慧觸控邏輯 (Pointer Events)
         // ==========================================
         let selectorTimer;
         let isSelecting = false;
         let currentHighlighted = null;
         let startX, startY;
-        let preventStart = false; // 防止選完牌立刻誤觸進入畫布
+        let preventStart = false; 
 
         secretBtn.addEventListener('pointerdown', (e) => {
-            e.stopPropagation(); // 阻止起始畫面接收事件
-            secretBtn.classList.add('active-trigger');
+            e.stopPropagation(); 
             startX = e.clientX;
             startY = e.clientY;
 
-            // ⚡️ 核心邏輯 1：長按超過 200 毫秒彈出矩陣
+            // 長按 200 毫秒在下方展開選單
             selectorTimer = setTimeout(() => {
                 isSelecting = true;
-                matrixOverlay.style.left = `${e.clientX}px`;
-                matrixOverlay.style.top = `${e.clientY}px`;
                 matrixOverlay.style.display = 'block';
                 matrixPreview.innerText = "請滑動選擇牌面";
                 matrixPreview.style.color = "#f3c623";
@@ -203,18 +196,14 @@
 
         window.addEventListener('pointermove', (e) => {
             if (!isSelecting) {
-                // 如果在 200ms 內滑動超過安全範圍，判定為非長按行為，取消計時器
                 if (selectorTimer) {
                     const dist = Math.sqrt(Math.pow(e.clientX - startX, 2) + Math.pow(e.clientY - startY, 2));
-                    if (dist > 10) {
-                        clearTimeout(selectorTimer);
-                        secretBtn.classList.remove('active-trigger');
-                    }
+                    if (dist > 15) clearTimeout(selectorTimer); // 防手震
                 }
                 return;
             }
 
-            // ⚡️ 核心邏輯 2：即時點對點元素偵測 document.elementFromPoint
+            // 即時偵測手指滑動到的卡片元素
             const target = document.elementFromPoint(e.clientX, e.clientY);
 
             if (target && target.classList.contains('card-option')) {
@@ -223,7 +212,6 @@
                     currentHighlighted = target;
                     currentHighlighted.classList.add('highlight');
 
-                    // 即時更新預覽文字與色彩辨識
                     const suitSym = currentHighlighted.getAttribute('data-symbol');
                     const valStr = currentHighlighted.getAttribute('data-display');
                     matrixPreview.innerText = `預覽：${suitSym} ${valStr}`;
@@ -241,52 +229,42 @@
 
         window.addEventListener('pointerup', (e) => {
             clearTimeout(selectorTimer);
-            secretBtn.classList.remove('active-trigger');
 
             if (isSelecting) {
-                // ⚡️ 核心邏輯 3：釋放確認階段
                 const target = document.elementFromPoint(e.clientX, e.clientY);
                 if (target && target.classList.contains('card-option')) {
                     startSuit = target.getAttribute('data-suit');
                     startValue = parseInt(target.getAttribute('data-val'));
-                    
-                    const suitSym = target.getAttribute('data-symbol');
-                    const valStr = target.getAttribute('data-display');
-                    matrixPreview.innerText = `已設定：${suitSym} ${valStr}`;
                 }
 
-                // 關閉與重置選單
                 setTimeout(() => {
                     if (currentHighlighted) currentHighlighted.classList.remove('highlight');
                     currentHighlighted = null;
                     matrixOverlay.style.display = 'none';
                     isSelecting = false;
-                }, 150);
+                }, 100);
 
-                // 開啟短暫冷卻鎖，防止釋放時同時點擊到主畫面進入畫布
                 preventStart = true;
                 setTimeout(() => preventStart = false, 300);
             }
         });
 
         // ==========================================
-        // 🎬 起始畫面切換 (點擊進入畫布，永久銷毀按鈕)
+        // 🎬 切換至主要畫布（物理銷毀秘密鍵）
         // ==========================================
         startScreen.addEventListener('pointerup', (e) => {
             if (preventStart || isSelecting || e.target === secretBtn) return;
 
-            // 進入畫布狀態
             startScreen.style.display = 'none';
-            secretBtn.remove(); // 徹底從 DOM 中移除秘密按鈕，確保萬無一失！
+            secretBtn.remove(); // 徹底銷毀按鈕
 
-            // 初始化並顯示畫布
             canvas.style.display = 'block';
             statusText.style.display = 'block';
             resize();
         });
 
         // ==========================================
-        // ✏️ 畫布演算與 3D 翻牌核心
+        // ✏️ 畫布演算與 3D 翻牌
         // ==========================================
         function resize() { 
             canvas.width = window.innerWidth; canvas.height = window.innerHeight; 
